@@ -19,6 +19,4 @@ app.use("/api/users", usersRoutes);
 app.use("/api/kos", kosRoutes);
 app.use("/api/bookings", bookingsRoutes);
 
-// ❌ Jangan gunakan app.listen() di Vercel
-// ✅ Sebagai ganti, ekspor handler:
 module.exports = app;
