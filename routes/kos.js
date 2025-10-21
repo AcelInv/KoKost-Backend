@@ -4,13 +4,17 @@ const db = require('../db');
 const multer = require('multer');
 const path = require('path');
 
+// Konfigurasi penyimpanan file upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'public/images'),
   filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage });
 
-// GET semua kos
+// ✅ Pastikan folder public/images tersedia dan bisa diakses
+// (tambahkan di server.js: app.use('/images', express.static('public/images')))
+
+// ======================= GET SEMUA KOS =======================
 router.get('/', async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM kos ORDER BY id DESC');
@@ -21,7 +25,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET detail kos
+// ======================= GET DETAIL KOS =======================
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -37,43 +41,39 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST tambah kos
+// ======================= POST TAMBAH KOS =======================
 router.post('/', upload.single('image'), async (req, res) => {
   const { name, location, price, availableRooms, description } = req.body;
   const imageUrl = req.file ? '/images/' + req.file.filename : null;
 
   try {
+    if (!name || !location || !price || !availableRooms) {
+      return res.status(400).json({ success: false, error: 'Semua field wajib diisi!' });
+    }
+
     await db.query(
       'INSERT INTO kos (name, location, price, available_rooms, image_url, description) VALUES ($1, $2, $3, $4, $5, $6)',
-      [name, location, price, availableRooms, imageUrl, description]
+      [name, location, price, Number(availableRooms), imageUrl, description || null]
     );
-    res.json({ message: 'Kos berhasil ditambahkan' });
+
+    res.status(201).json({ success: true, message: 'Kos berhasil ditambahkan' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('Error POST /kos:', err.message);
+    res.status(500).json({ success: false, error: 'Gagal menambahkan kos' });
   }
 });
 
-// DELETE kos
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await db.query('DELETE FROM rooms WHERE kos_id = $1', [id]);
-    await db.query('DELETE FROM kos WHERE id = $1', [id]);
-    res.json({ message: 'Kos berhasil dihapus' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// PUT update kos
+// ======================= PUT UPDATE KOS =======================
 router.put('/:id', upload.single('image'), async (req, res) => {
   const { id } = req.params;
   const { name, location, price, available_rooms, description } = req.body;
   const imageUrl = req.file ? '/images/' + req.file.filename : null;
 
   try {
+    if (!name || !location || !price || !available_rooms) {
+      return res.status(400).json({ success: false, error: 'Semua field wajib diisi!' });
+    }
+
     if (imageUrl) {
       await db.query(
         'UPDATE kos SET name=$1, location=$2, price=$3, available_rooms=$4, image_url=$5, description=$6 WHERE id=$7',
@@ -93,5 +93,17 @@ router.put('/:id', upload.single('image'), async (req, res) => {
   }
 });
 
+// ======================= DELETE KOS =======================
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query('DELETE FROM rooms WHERE kos_id = $1', [id]);
+    await db.query('DELETE FROM kos WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Kos berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
+});
 
 module.exports = router;
