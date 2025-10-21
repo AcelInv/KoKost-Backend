@@ -2,15 +2,15 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
-// Ambil semua bookings
+// GET semua booking
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await db.query(`
+    const result = await db.query(`
       SELECT 
         b.id AS booking_id,
         b.start_date,
         b.created_at,
-        b.rooms AS rooms,
+        b.rooms,
         u.id AS user_id,
         u.email AS user_email,
         k.id AS kos_id,
@@ -21,61 +21,47 @@ router.get("/", async (req, res) => {
       JOIN kos k ON b.kos_id = k.id
       ORDER BY b.created_at DESC
     `);
-    res.json(rows);
+    res.json(result.rows);
   } catch (err) {
-    console.error("❌ Error GET /api/bookings:", err.message);
-    res
-      .status(500)
-      .json({ error: "Failed to fetch bookings", details: err.message });
+    console.error("Error GET /bookings:", err.message);
+    res.status(500).json({ error: "Failed to fetch bookings" });
   }
 });
 
-// Buat booking baru (langsung, tanpa status)
+// POST tambah booking baru
 router.post("/", async (req, res) => {
   try {
     const { user_id, kos_id, rooms, start_date } = req.body;
     if (!user_id || !kos_id || !rooms || !start_date)
       return res.status(400).json({ error: "Semua field wajib diisi" });
 
-    // Ambil available_rooms
-    const [kosRow] = await db.query(
-      "SELECT available_rooms FROM kos WHERE id = ?",
-      [kos_id]
-    );
-    if (!kosRow.length)
+    const kosRow = await db.query("SELECT available_rooms FROM kos WHERE id = $1", [kos_id]);
+    if (kosRow.rows.length === 0)
       return res.status(404).json({ error: "Kos tidak ditemukan" });
 
-    const available = kosRow[0].available_rooms;
+    const available = kosRow.rows[0].available_rooms;
     if (available < rooms)
-      return res
-        .status(400)
-        .json({ error: `Hanya tersedia ${available} kamar` });
+      return res.status(400).json({ error: `Hanya tersedia ${available} kamar` });
 
     // Insert booking
-    const [result] = await db.query(
+    const result = await db.query(
       `INSERT INTO bookings (user_id, kos_id, rooms, start_date, created_at)
-       VALUES (?, ?, ?, ?, NOW())`,
+       VALUES ($1, $2, $3, $4, NOW()) RETURNING id`,
       [user_id, kos_id, rooms, start_date]
     );
 
-    // Update available_rooms
     const newAvailable = available - rooms;
-    await db.query("UPDATE kos SET available_rooms = ? WHERE id = ?", [
-      newAvailable,
-      kos_id,
-    ]);
+    await db.query("UPDATE kos SET available_rooms = $1 WHERE id = $2", [newAvailable, kos_id]);
 
     res.status(201).json({
       success: true,
-      booking_id: result.insertId,
+      booking_id: result.rows[0].id,
       available_rooms: newAvailable,
       rooms_booked: rooms,
     });
   } catch (err) {
-    console.error("❌ Error POST /api/bookings:", err.message);
-    res
-      .status(500)
-      .json({ error: "Gagal menambahkan booking", details: err.message });
+    console.error("Error POST /bookings:", err.message);
+    res.status(500).json({ error: "Gagal menambahkan booking" });
   }
 });
 
