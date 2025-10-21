@@ -67,4 +67,31 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// PUT update kos
+router.put('/:id', upload.single('image'), async (req, res) => {
+  const { id } = req.params;
+  const { name, location, price, available_rooms, description } = req.body;
+  const imageUrl = req.file ? '/images/' + req.file.filename : null;
+
+  try {
+    if (imageUrl) {
+      await db.query(
+        'UPDATE kos SET name=$1, location=$2, price=$3, available_rooms=$4, image_url=$5, description=$6 WHERE id=$7',
+        [name, location, price, available_rooms, imageUrl, description || null, id]
+      );
+    } else {
+      await db.query(
+        'UPDATE kos SET name=$1, location=$2, price=$3, available_rooms=$4, description=$5 WHERE id=$6',
+        [name, location, price, available_rooms, description || null, id]
+      );
+    }
+
+    res.json({ success: true, message: 'Kos berhasil diperbarui' });
+  } catch (err) {
+    console.error('Error PUT /kos/:id:', err.message);
+    res.status(500).json({ success: false, error: 'Gagal memperbarui kos' });
+  }
+});
+
+
 module.exports = router;
