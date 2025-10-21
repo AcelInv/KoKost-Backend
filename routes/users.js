@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error("Error GET /users:", err.message);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -20,11 +20,11 @@ router.post("/register", async (req, res) => {
   try {
     const checkUser = await db.query("SELECT * FROM users WHERE username = $1", [username]);
     if (checkUser.rows.length > 0)
-      return res.status(400).json({ error: "Username sudah dipakai" });
+      return res.status(400).json({ success: false, error: "Username sudah dipakai" });
 
     const checkEmail = await db.query("SELECT * FROM users WHERE email = $1", [email]);
     if (checkEmail.rows.length > 0)
-      return res.status(400).json({ error: "Email sudah terdaftar" });
+      return res.status(400).json({ success: false, error: "Email sudah terdaftar" });
 
     const hashed = await bcrypt.hash(password, 10);
     await db.query(
@@ -32,10 +32,14 @@ router.post("/register", async (req, res) => {
       [username, email, hashed, role || "user"]
     );
 
-    res.json({ message: "Registrasi berhasil" });
+    // ✅ Tambahan success + status 201 agar frontend mengenali sebagai berhasil
+    res.status(201).json({
+      success: true,
+      message: "Registrasi berhasil",
+    });
   } catch (err) {
     console.error("Error POST /register:", err.message);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -45,16 +49,17 @@ router.post("/login", async (req, res) => {
   try {
     const result = await db.query("SELECT * FROM users WHERE username = $1", [username]);
     if (result.rows.length === 0)
-      return res.status(400).json({ error: "Username tidak ditemukan" });
+      return res.status(400).json({ success: false, error: "Username tidak ditemukan" });
 
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ error: "Password salah" });
+    if (!match)
+      return res.status(400).json({ success: false, error: "Password salah" });
 
-    res.json({ id: user.id, username: user.username, role: user.role });
+    res.json({ success: true, id: user.id, username: user.username, role: user.role });
   } catch (err) {
     console.error("Error POST /login:", err.message);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
@@ -63,10 +68,10 @@ router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     await db.query("DELETE FROM users WHERE id = $1", [id]);
-    res.json({ message: "User dihapus" });
+    res.json({ success: true, message: "User dihapus" });
   } catch (err) {
     console.error("Error DELETE /users:", err.message);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ success: false, error: "Database error" });
   }
 });
 
